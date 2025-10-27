@@ -253,7 +253,7 @@ class ServerOptions:
     log_level: str
 
 
-async def serve(options: ServerOptions) -> None:
+async def run_server(options: ServerOptions) -> None:
     runtime = RuntimeConfig.from_filesystem(options.config_path)
 
     ssl_context = None
@@ -333,7 +333,7 @@ def configure_logging(level: str) -> None:
 
 async def _async_main(options: ServerOptions) -> None:
     configure_logging(options.log_level)
-    await serve(options)
+    await run_server(options)
 
 
 def main(argv: Optional[list[str]] = None) -> None:
