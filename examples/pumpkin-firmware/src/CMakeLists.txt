@@ -8,8 +8,8 @@ if(IDF_TARGET STREQUAL linux)
 		REQUIRES peer esp-libopus esp_http_client)
 else()
 	idf_component_register(
-		SRCS ${COMMON_SRC} "wifi.cpp" "media.cpp"  "cmd.cpp" ${UI_SRCS}
-		REQUIRES driver esp_wifi nvs_flash peer esp_psram esp-libopus esp_http_client console
+		SRCS ${COMMON_SRC} "pumpkin_client.cpp" "wifi.cpp" "media.cpp"  "cmd.cpp" ${UI_SRCS}
+        REQUIRES driver esp_wifi nvs_flash peer esp_psram esp-libopus esp_http_client console esp_websocket_client cjson esp_app_format
 		INCLUDE_DIRS "." "./ui")
 endif()
 

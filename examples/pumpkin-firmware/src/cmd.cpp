@@ -18,10 +18,6 @@ static const char *TAG = "cmd";
 
 char g_openai_api_key_buf[165] = {0,};
 
-static int max(int a, int b) {
-    return (a > b) ? a : b;
-}
-
 static esp_err_t storage_write(char *p_key, void *p_data, size_t len)
 {
     nvs_handle_t my_handle;
@@ -66,8 +62,6 @@ static struct {
     struct arg_str *password;
     struct arg_end *end;
 } wifi_cfg_args;
-
-
 
 static int wifi_cfg_set(int argc, char **argv)
 {
@@ -138,7 +132,6 @@ static void register_cmd_wifi_sta(void)
     };
     ESP_ERROR_CHECK( esp_console_cmd_register(&cmd) );
 }
-
 
 /************* reboot **************/
 static int do_reboot(int argc, char **argv)
@@ -215,7 +208,6 @@ static void register_openai_api_key(void)
     ESP_ERROR_CHECK( esp_console_cmd_register(&cmd) );
 }
 
-
 /************* cmd register **************/
 int cmd_init(void)
 {
@@ -264,10 +256,8 @@ int cmd_init(void)
     if (ret == ESP_OK) {
         ESP_LOGI(TAG,"read openai api key");
 	} else {
-        ESP_LOGE(TAG, "Please set openai api key and wifi ssid and password via cmdline, then reboot!");
-        while (1) {
-            vTaskDelay(pdMS_TO_TICKS(200));
-        }
+        ESP_LOGW(TAG, "OpenAI API key not found. Voice streaming will be disabled until configured.");
+        memset(g_openai_api_key_buf, 0, sizeof(g_openai_api_key_buf));
 	}
 #else
     ESP_LOGI(TAG,"read OPENAI_API_KEY");

@@ -9,9 +9,16 @@ menu "SenseCAP Watcher BSP Configuration"
     config BSP_AUDIO_MIC_VALUE_GAIN
     int "Audio mic value gain"
     range 0 3
-    default 0
+    default 1
     help
         "Audio mic value gain"
+
+    config BSP_AUDIO_MIC_ANALOG_GAIN_DB
+    int "Audio mic analog gain (dB)"
+    range 0 52
+    default 33
+    help
+        "Analog gain applied to the ES7243 microphone front end."
 
     config BSP_LCD_DEFAULT_BRIGHTNESS
     int "LCD default brightness"

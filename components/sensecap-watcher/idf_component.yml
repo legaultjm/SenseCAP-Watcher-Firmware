@@ -39,4 +39,3 @@ dependencies:
 
   esp_io_expander_pca95xx_16bit:
     override_path: "../esp_io_expander_pca95xx_16bit"
-

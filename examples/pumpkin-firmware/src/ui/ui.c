@@ -37,6 +37,23 @@ static bool is_speaking = false; // Whether the speaking images are currently di
 static lv_timer_t *timer1 = NULL; // Timer 1 (switches to listening after 2.5s)
 static lv_timer_t *timer2 = NULL; // Timer 2 (500ms image polling)
 
+static void ensure_label(void)
+{
+    if (!label) {
+        label = lv_label_create(lv_scr_act()); // Create a label on the active screen
+        lv_obj_set_width(label, LV_PCT(100));
+        lv_label_set_long_mode(label, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    }
+}
+
+static void ui_set_label_text(const char *text)
+{
+    ensure_label();
+    lv_label_set_text(label, text);
+    lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+}
+
 // Timer 2 callback function (500ms image polling)
 static void timer2_callback(lv_timer_t *timer)
 {
@@ -56,6 +73,11 @@ static void timer1_callback(lv_timer_t *timer)
 void ui_switch_speaking(void)
 {
     lvgl_port_lock(0);
+    if (img == NULL) {
+        img = lv_img_create(lv_scr_act());
+        lv_img_set_src(img, listening_images[current_image_index]);
+        lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
+    }
     if (!is_speaking) {
         // If not currently displaying speaking images, switch to speaking images
         is_speaking = true;
@@ -81,6 +103,9 @@ void ui_switch_speaking(void)
 void ui_listening(void)
 {
     lvgl_port_lock(0);
+    if (label) {
+        lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+    }
     img = lv_img_create(lv_scr_act());
     lv_img_set_src(img, listening_images[current_image_index]); // Set the initial image to listening
     lv_obj_align(img, LV_ALIGN_CENTER, 0, 0); // Center the image
@@ -92,25 +117,57 @@ void ui_listening(void)
 void ui_wifi_connecting(void)
 {
     lvgl_port_lock(0);
-    if (label) {
-        lv_label_set_text(label, "Wi-Fi Connecting...");
-        lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
-    }
+    ui_set_label_text("Wi-Fi connecting...");
+    lvgl_port_unlock();
+}
+
+void ui_wifi_connected(void)
+{
+    lvgl_port_lock(0);
+    ui_set_label_text("Wi-Fi connected. Waiting for pumpkin server...");
+    lvgl_port_unlock();
+}
+
+void ui_wifi_failed(void)
+{
+    lvgl_port_lock(0);
+    ui_set_label_text("Wi-Fi failed. Check pumpkin_config.h and reboot.");
+    lvgl_port_unlock();
+}
+
+void ui_server_connecting(void)
+{
+    lvgl_port_lock(0);
+    ui_set_label_text("Pumpkin server connecting...");
+    lvgl_port_unlock();
+}
+
+void ui_server_waiting_config(void)
+{
+    lvgl_port_lock(0);
+    ui_set_label_text("Pumpkin server configuring...");
+    lvgl_port_unlock();
+}
+
+void ui_server_ready(void)
+{
+    lvgl_port_lock(0);
+    ui_set_label_text("Pumpkin server ready. Say hello!");
+    lvgl_port_unlock();
+}
+
+void ui_server_error(void)
+{
+    lvgl_port_lock(0);
+    ui_set_label_text("Pumpkin server unavailable. Retrying...");
     lvgl_port_unlock();
 }
 
 void ui_init(void)
 {
     lvgl_port_lock(0);
-    label = lv_label_create(lv_scr_act()); // Create a label on the active screen
-    lv_label_set_text(label, "Configure Wifi and OpenAI key via serial port.");
-    
-    // Set the label width to screen width (to enable scrolling)
-    lv_obj_set_width(label, LV_PCT(100)); // 100% of parent width
-    // Enable long mode for scrolling
-    lv_label_set_long_mode(label, LV_LABEL_LONG_SCROLL_CIRCULAR); // Circular scroll
-
-    // Align the label to the center of the screen
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0); // Center alignment with no offset
+    ensure_label();
+    lv_label_set_text(label, "Configure Wi-Fi and OpenAI key via serial port.");
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
     lvgl_port_unlock();
 }

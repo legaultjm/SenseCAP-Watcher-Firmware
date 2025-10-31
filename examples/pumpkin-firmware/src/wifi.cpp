@@ -7,23 +7,44 @@
 #include <string.h>
 
 #include "main.h"
+#include "pumpkin_config.h"
 
 static bool g_wifi_connected = false;
+static bool g_wifi_failed = false;
+
+static bool wifi_credentials_configured(void) {
+  const bool ssid_configured = strlen(pumpkin_config::kWifiSsid) != 0 &&
+                              strcmp(pumpkin_config::kWifiSsid, "REPLACE_WITH_WIFI_SSID") != 0;
+  const bool password_configured =
+      strcmp(pumpkin_config::kWifiPassword, "REPLACE_WITH_WIFI_PASSWORD") != 0;
+  return ssid_configured && password_configured;
+}
 
 static void oai_event_handler(void *arg, esp_event_base_t event_base,
                               int32_t event_id, void *event_data) {
   static int s_retry_num = 0;
-  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-    if (s_retry_num < 5) {
-      esp_wifi_connect();
+  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+    ESP_ERROR_CHECK(esp_wifi_connect());
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+    if (s_retry_num < pumpkin_config::kWifiMaxRetryCount) {
       s_retry_num++;
-      ESP_LOGI(LOG_TAG, "retry to connect to the AP");
+      ESP_LOGW(LOG_TAG, "Wi-Fi disconnected, retry %d/%d",
+               s_retry_num, pumpkin_config::kWifiMaxRetryCount);
+      ESP_ERROR_CHECK(esp_wifi_connect());
+      ui_wifi_connecting();
+    } else {
+      ESP_LOGE(LOG_TAG, "Wi-Fi connection failed after %d retries",
+               pumpkin_config::kWifiMaxRetryCount);
+      g_wifi_failed = true;
+      ui_wifi_failed();
     }
-    ESP_LOGI(LOG_TAG, "connect to the AP fail");
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
     ESP_LOGI(LOG_TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
     g_wifi_connected = true;
+    g_wifi_failed = false;
+    s_retry_num = 0;
+    ui_wifi_connected();
   }
 }
 
@@ -42,40 +63,43 @@ void oai_wifi_init(void)
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 }
 
-void oai_wifi(void) {
+bool oai_wifi(void) {
+  g_wifi_connected = false;
+  g_wifi_failed = false;
 
-  wifi_config_t wifi_config;
-  esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
-  if (strlen((const char *)wifi_config.sta.ssid))
-  {
-    ESP_LOGI(LOG_TAG, "Connecting to last WiFi SSID: %s", wifi_config.sta.ssid);
-  } else {
-    #if defined(WIFI_SSID) && defined(WIFI_PASSWORD)
-      ESP_LOGI(LOG_TAG, "Connecting to WiFi SSID: %s", WIFI_SSID);
-      memset(&wifi_config, 0, sizeof(wifi_config));
-      strncpy((char *)wifi_config.sta.ssid, (char *)WIFI_SSID,
-              sizeof(wifi_config.sta.ssid));
-      strncpy((char *)wifi_config.sta.password, (char *)WIFI_PASSWORD,
-              sizeof(wifi_config.sta.password));
-    #else 
-      ESP_LOGI(LOG_TAG, "Please set WIFI_SSID and WIFI_PASSWORD via cmdline, then reboot");
-      while (!g_wifi_connected) {
-        vTaskDelay(pdMS_TO_TICKS(200));
-      }
-    #endif
+  if (!wifi_credentials_configured()) {
+    ESP_LOGE(LOG_TAG,
+             "Wi-Fi credentials missing. Update pumpkin_config.h before flashing.");
+    ui_wifi_failed();
+    return false;
   }
+
+  wifi_config_t wifi_config = {};
+  memset(&wifi_config, 0, sizeof(wifi_config));
+  strlcpy(reinterpret_cast<char *>(wifi_config.sta.ssid),
+          pumpkin_config::kWifiSsid, sizeof(wifi_config.sta.ssid));
+  strlcpy(reinterpret_cast<char *>(wifi_config.sta.password),
+          pumpkin_config::kWifiPassword, sizeof(wifi_config.sta.password));
+
+  if (strlen(pumpkin_config::kWifiPassword) > 0) {
+    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+  } else {
+    wifi_config.sta.threshold.authmode = WIFI_AUTH_OPEN;
+  }
+  wifi_config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+
+  ESP_LOGI(LOG_TAG, "Connecting to Wi-Fi SSID: %s", wifi_config.sta.ssid);
   ui_wifi_connecting();
 
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
   ESP_ERROR_CHECK(esp_wifi_start());
   ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(34));
 
-  ESP_ERROR_CHECK(esp_wifi_set_config(
-      static_cast<wifi_interface_t>(ESP_IF_WIFI_STA), &wifi_config));
-  ESP_ERROR_CHECK(esp_wifi_connect());
-
-  // block until we get an IP address
-  while (!g_wifi_connected) {
+  // Connection attempt triggered by WIFI_EVENT_STA_START handler.
+  while (!g_wifi_connected && !g_wifi_failed) {
     vTaskDelay(pdMS_TO_TICKS(200));
   }
+
+  return g_wifi_connected;
 }

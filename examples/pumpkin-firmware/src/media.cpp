@@ -1,6 +1,11 @@
 #include <driver/i2s.h>
 #include <opus.h>
 
+#include <algorithm>
+#include <cmath>
+#include <math.h>
+#include <vector>
+
 #include "main.h"
 
 
@@ -20,7 +25,7 @@ static esp_codec_dev_handle_t record_dev_handle;
 void oai_init_audio_capture() {
   bsp_codec_mute_set(true);
   bsp_codec_mute_set(false);
-  bsp_codec_volume_set(100, NULL);
+  bsp_codec_volume_set(120, NULL);
 
   play_dev_handle = bsp_codec_speaker_get();
   record_dev_handle = bsp_codec_microphone_get();
@@ -91,4 +96,52 @@ void oai_send_audio(PeerConnection *peer_connection) {
   // printf("size: %d, encoded_size : %ld\r\n", BUFFER_SAMPLES, encoded_size);
   peer_connection_send_audio(peer_connection, encoder_output_buffer,
                              encoded_size);
+}
+
+size_t pumpkin_audio_read(int16_t *buffer, size_t samples) {
+  if (!record_dev_handle || buffer == NULL || samples == 0) {
+    return 0;
+  }
+  size_t bytes_to_read = samples * sizeof(int16_t);
+  esp_err_t ret = bsp_get_feed_data(false, buffer, bytes_to_read);
+  if (ret != ESP_OK) {
+    return 0;
+  }
+  return bytes_to_read / sizeof(int16_t);
+}
+
+void pumpkin_audio_write(const int16_t *buffer, size_t samples) {
+  if (!play_dev_handle || buffer == NULL || samples == 0) {
+    return;
+  }
+  size_t bytes_to_write = samples * sizeof(int16_t);
+  esp_codec_dev_write(play_dev_handle, const_cast<int16_t *>(buffer), bytes_to_write);
+}
+
+void pumpkin_audio_play_test_tone(void) {
+  if (!play_dev_handle) {
+    return;
+  }
+
+  constexpr float kAmplitude = 0.4f;
+  constexpr float kFrequencyHz = 880.0f;
+  constexpr uint32_t kDurationMs = 500;
+  constexpr float kTwoPi = 6.28318530717958647692f;
+
+  const size_t total_samples = (SAMPLE_RATE * kDurationMs) / 1000;
+  std::vector<int16_t> waveform(total_samples);
+
+  for (size_t i = 0; i < total_samples; ++i) {
+    const float t = static_cast<float>(i) / static_cast<float>(SAMPLE_RATE);
+    const float value = sinf(kTwoPi * kFrequencyHz * t);
+    waveform[i] = static_cast<int16_t>(value * kAmplitude * 32767.0f);
+  }
+
+  constexpr size_t kChunkSamples = 320;
+  size_t offset = 0;
+  while (offset < waveform.size()) {
+    const size_t chunk = std::min(kChunkSamples, waveform.size() - offset);
+    pumpkin_audio_write(waveform.data() + offset, chunk);
+    offset += chunk;
+  }
 }

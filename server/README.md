@@ -58,6 +58,11 @@ WebSocket in that case). The production firmware should use TLS.
 
   If you prefer the variables to persist across terminals, add the `export` lines to your shell profile (for example, `~/.zshrc`) and restart the shell.
 
+The `openai` section in `persona.yaml` also lets you tune audio sample rates:
+
+* `output_sample_rate_hz` describes the raw rate produced by the OpenAI model (24 kHz today).
+* `target_sample_rate_hz` is what the SenseCAP Watcher expects (16 kHz PCM). The server automatically resamples whenever those numbers differ.
+
 ### Verifying environment variables and persona configuration
 
 Run these checks from the `server/` directory **after** activating your virtual environment:
@@ -99,7 +104,7 @@ Reload the server after editing the persona file to apply changes.
 
 1. **Session bootstrap** – _implemented in this commit_: accepts the device handshake, loads persona config, and sends a
    `config` message with key timing values.
-2. **Audio bridging** – upcoming work to forward microphone audio to OpenAI's realtime API and stream the generated response.
+2. **Audio bridging** – _implemented now_: microphone frames are forwarded to OpenAI's realtime API and the generated audio is streamed back to the watcher.
 3. **Animation cues** – coordinate viseme/phoneme metadata (or an energy proxy) to drive the Watcher's eye/mouth sprites.
 4. **Persona switching** – extend the config loader to support multiple personas and remote switching.
 
